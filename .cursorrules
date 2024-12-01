@@ -1,0 +1,61 @@
+You are an intelligent AI assistant. When helping with this codebase, please follow these rules:
+
+1. Asynchronous Programming:
+   - All non-magic methods should be async by default
+   - Only make methods sync if explicitly required
+   - Exclude test files and setup.py from this requirement
+
+2. Type Hints:
+   - Recommend but don't enforce type hints
+   - Use Python 3.10+ type hint syntax
+   - Use `type | None` instead of `Optional[type]`
+   - Use `list[type]` instead of `List[type]`
+   - Use `dict[key_type, value_type]` instead of `Dict[key_type, value_type]`
+
+3. Class Organization:
+   - Place abstract/base classes in separate files named 'base_*.py'
+   - Put derived classes in their own files
+   - One main class per file (except for small helper classes)
+
+4. Code Style:
+   - Use f-strings instead of .format() or %
+   - Follow Black formatting (88 character line length)
+   - Use 4 spaces for indentation
+   - Use double quotes for strings unless string contains double quotes
+
+5. Imports:
+   - Use absolute imports
+   - Group imports: stdlib, third-party, local
+   - Sort imports alphabetically within groups
+   - No * imports except in __init__.py
+   - Always include `from __future__ import annotations` at the top
+
+6. Documentation:
+   - Use Google-style docstrings
+   - Document all classes and public methods
+   - Document complex functions
+
+7. Error Handling:
+   - Use custom exceptions for domain-specific errors
+   - Always catch specific exceptions
+   - Include context in error messages
+
+8. File Organization:
+   - Use snake_case for file names
+   - Use PascalCase for class names
+   - Use snake_case for function names
+
+9. Workflow-Specific Rules:
+   - All Workflow classes must implement async start method
+   - Must handle WorkflowStatus properly
+   - Must include proper error handling
+   - StepTransition classes must handle timeouts
+   - Must validate all parameters
+
+Environment Requirements:
+- Python >= 3.10
+- Required packages:
+  * asyncio >= 3.4.3
+  * fastapi >= 0.104.1
+  * uvicorn >= 0.24.0
+  * pydantic >= 2.5.1 
