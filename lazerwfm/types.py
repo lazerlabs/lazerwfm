@@ -30,8 +30,19 @@ class StepTimeoutError(WorkflowError):
     pass
 
 
+class TransitionType(str, Enum):
+    """Enum for step transition types"""
+
+    BASE = "BASE_TRANSITION"
+    NEXT = "NEXT_STEP"
+    WAIT = "WAIT_AND_NEXT"
+    SCHEDULE = "SCHEDULE"
+
+
 class StepTransition:
     """Base class for step transitions"""
+
+    transition_type = TransitionType.BASE
 
     def __init__(self, timeout: float | None = None):
         if timeout is not None and timeout > MAX_STEP_TIMEOUT:
@@ -42,6 +53,8 @@ class StepTransition:
 class NextStep(StepTransition):
     """Immediate transition to the next step"""
 
+    transition_type = TransitionType.NEXT
+
     def __init__(self, next_step: Callable, timeout: float | None = None, **params):
         super().__init__(timeout)
         self.next_step = next_step
@@ -50,6 +63,8 @@ class NextStep(StepTransition):
 
 class WaitAndNextStep(NextStep):
     """Wait for specified seconds before transitioning to next step"""
+
+    transition_type = TransitionType.WAIT
 
     def __init__(
         self,
@@ -64,6 +79,8 @@ class WaitAndNextStep(NextStep):
 
 class Schedule(NextStep):
     """Schedule next step at specific time"""
+
+    transition_type = TransitionType.SCHEDULE
 
     def __init__(
         self,
