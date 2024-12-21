@@ -1,7 +1,9 @@
 from datetime import datetime
+from typing import Any
 
 import httpx
 import typer
+from httpx import ConnectError
 from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
@@ -59,6 +61,20 @@ class WorkflowClient:
         """Close the client session"""
         await self.client.aclose()
 
+    async def list_available_workflows(self) -> dict:
+        """List available workflows"""
+        response = await self.client.get("/workflows/available")
+        response.raise_for_status()
+        return response.json()
+
+    async def start_workflow(self, workflow_name: str, params: dict[str, Any]) -> dict:
+        """Start a workflow by name"""
+        response = await self.client.post(
+            f"/workflows/start/{workflow_name}", json={"parameters": params}
+        )
+        response.raise_for_status()
+        return response.json()
+
 
 def create_workflow_table(workflows: list[dict]) -> Table:
     """Create a rich table for workflows"""
@@ -71,7 +87,7 @@ def create_workflow_table(workflows: list[dict]) -> Table:
 
     for wf in workflows:
         table.add_row(
-            wf["id"],
+            wf["workflow_id"],
             wf["status"],
             wf["created_at"],
             str(wf["result"]) if wf["result"] else "",
@@ -194,6 +210,83 @@ def health():
     import asyncio
 
     asyncio.run(_health())
+
+
+@app.command()
+def list_available():
+    """List available workflows"""
+
+    async def _list():
+        client = WorkflowClient()
+        try:
+            with Progress() as progress:
+                task = progress.add_task("Fetching available workflows...", total=1)
+                try:
+                    result = await client.list_available_workflows()
+                except ConnectError:
+                    console.print(
+                        "[red]Error: Could not connect to server. Is the server running?[/red]"
+                    )
+                    return
+                except Exception as e:
+                    console.print(f"[red]Error: {str(e)}[/red]")
+                    return
+                progress.update(task, advance=1)
+
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("Name")
+            table.add_column("Description")
+            table.add_column("Parameters")
+
+            for wf in result["workflows"]:
+                params = ", ".join(
+                    f"{k}{'*' if v.get('required') else ''}"
+                    for k, v in wf["parameters"].items()
+                )
+                table.add_row(wf["name"], wf["description"], params)
+
+            console.print(table)
+        finally:
+            await client.close()
+
+    import asyncio
+
+    asyncio.run(_list())
+
+
+@app.command()
+def start(
+    workflow_name: str,
+    params: list[str] = typer.Option(
+        [], "--param", "-p", help="Parameters in key=value format"
+    ),
+    url: str = typer.Option("http://localhost:8000", help="API base URL"),
+):
+    """Start a workflow"""
+    workflow_params = {}
+    for param in params:
+        try:
+            key, value = param.split("=", 1)
+            workflow_params[key.strip()] = value.strip()
+        except ValueError:
+            console.print(f"[red]Invalid parameter format: {param}[/red]")
+            return
+
+    async def _start():
+        client = WorkflowClient(url)
+        try:
+            with Progress() as progress:
+                task = progress.add_task("Starting workflow...", total=1)
+                result = await client.start_workflow(workflow_name, workflow_params)
+                progress.update(task, advance=1)
+
+            console.print(f"[green]Workflow started: {result['workflow_id']}[/green]")
+        finally:
+            await client.close()
+
+    import asyncio
+
+    asyncio.run(_start())
 
 
 def run_cli():

@@ -13,15 +13,16 @@ from .storage import (
 from .types import (
     DEFAULT_STEP_TIMEOUT,
     NextStep,
-    StepTransition,
     Schedule,
     StepTimeoutError,
+    StepTransition,
+    TransitionType,
     WaitAndNextStep,
     WorkflowError,
     WorkflowStatus,
-    TransitionType,
 )
 from .workflow import Workflow
+from .workflow_registry import WorkflowRegistry
 
 
 class WorkflowEngine:
@@ -31,6 +32,7 @@ class WorkflowEngine:
         self,
         storage: WorkflowStorage | None = None,
         task_queue: TaskQueue | None = None,
+        registry: WorkflowRegistry | None = None,
     ):
         self._storage = (
             storage or MemoryWorkflowStorage()
@@ -38,6 +40,7 @@ class WorkflowEngine:
         self._task_queue = (
             task_queue or MemoryTaskQueue()
         )  # If not specified, defaults to in-memory task queue
+        self._registry = registry or WorkflowRegistry()
         self._running = False
         self._engine_task: asyncio.Task | None = None
 
@@ -55,6 +58,21 @@ class WorkflowEngine:
             self._running = True
 
         return workflow.id
+
+    async def start_workflow_by_name(self, workflow_name: str, **params) -> str:
+        """Start a workflow by its registered name"""
+        workflow_info = self._registry.get_workflow_class(workflow_name)
+        if not workflow_info:
+            raise ValueError(f"Workflow '{workflow_name}' not found")
+
+        workflow_class, metadata = workflow_info
+
+        # Validate parameters against metadata
+        for param_name, param_info in metadata.parameters.items():
+            if param_info.get("required", False) and param_name not in params:
+                raise ValueError(f"Required parameter '{param_name}' missing")
+
+        return await self.start_workflow(workflow_class, **params)
 
     async def _run_engine(self):
         """Main engine loop"""
@@ -77,42 +95,55 @@ class WorkflowEngine:
                     step_method(**params), timeout=DEFAULT_STEP_TIMEOUT
                 )
 
-                if isinstance(result, StepTransition):
-                    match result.transition_type:
-                        case "WAIT_AND_NEXT":
+                if not isinstance(result, StepTransition):
+                    print(
+                        f"Error: Step {step_name} returned {type(result)} instead of a StepTransition"
+                    )
+                    workflow.set_error(
+                        WorkflowError(f"Invalid step transition: {type(result)}")
+                    )
+                    workflow.status = WorkflowStatus.FAILED
+                    continue
+
+                match result.transition_type:
+                    case TransitionType.END:
+                        workflow.status = WorkflowStatus.COMPLETED
+                        workflow.set_result(result.result)
+                        continue
+
+                    case TransitionType.WAIT:
+                        try:
+                            await asyncio.wait_for(
+                                asyncio.sleep(result.wait_seconds),
+                                timeout=result.timeout,
+                            )
+                        except asyncio.TimeoutError:
+                            raise StepTimeoutError(
+                                f"Wait timeout after {result.timeout} seconds"
+                            )
+
+                    case TransitionType.SCHEDULE:
+                        now = datetime.now()
+                        if result.schedule_time > now:
+                            wait_seconds = (result.schedule_time - now).total_seconds()
                             try:
                                 await asyncio.wait_for(
-                                    asyncio.sleep(result.wait_seconds),
+                                    asyncio.sleep(wait_seconds),
                                     timeout=result.timeout,
                                 )
                             except asyncio.TimeoutError:
                                 raise StepTimeoutError(
-                                    f"Wait timeout after {result.timeout} seconds"
+                                    f"Schedule timeout after {result.timeout} seconds"
                                 )
 
-                        case "SCHEDULE":
-                            now = datetime.now()
-                            if result.schedule_time > now:
-                                wait_seconds = (
-                                    result.schedule_time - now
-                                ).total_seconds()
-                                try:
-                                    await asyncio.wait_for(
-                                        asyncio.sleep(wait_seconds),
-                                        timeout=result.timeout,
-                                    )
-                                except asyncio.TimeoutError:
-                                    raise StepTimeoutError(
-                                        f"Schedule timeout after {result.timeout} seconds"
-                                    )
+                    case TransitionType.NEXT:
+                        pass  # Immediate transition, no waiting needed
 
-                        case "NEXT_STEP":
-                            pass  # Immediate transition, no waiting needed
-
-                # Schedule next step
+                # Schedule next step if not END transition
                 self._task_queue.push(
                     workflow_id, result.next_step.__name__, result.params
                 )
+
             except asyncio.TimeoutError:
                 print(
                     f"Step {step_name} timed out after {DEFAULT_STEP_TIMEOUT} seconds"
