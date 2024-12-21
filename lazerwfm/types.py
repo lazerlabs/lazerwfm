@@ -37,6 +37,7 @@ class TransitionType(str, Enum):
     NEXT = "NEXT_STEP"
     WAIT = "WAIT_AND_NEXT"
     SCHEDULE = "SCHEDULE"
+    END = "END_WORKFLOW"
 
 
 class StepTransition:
@@ -91,3 +92,13 @@ class Schedule(NextStep):
     ):
         super().__init__(next_step, timeout, **params)
         self.schedule_time = schedule_time
+
+
+class EndWorkflow(StepTransition):
+    """Mark the end of a workflow with an optional result"""
+
+    transition_type = TransitionType.END
+
+    def __init__(self, result: Any = None):
+        super().__init__()
+        self.result = result

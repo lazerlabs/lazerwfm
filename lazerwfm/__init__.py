@@ -8,6 +8,7 @@ from .types import WorkflowStatus
 from .web import WorkflowServer, create_api, run_server
 from .workflow import Workflow
 from .workflow_engine import WorkflowEngine
+from .workflow_registry import WorkflowRegistry
 
 __version__ = "0.1.0"
 
@@ -22,4 +23,5 @@ __all__ = [
     "run_server",
     "WorkflowClient",
     "run_cli",
+    "WorkflowRegistry",
 ]

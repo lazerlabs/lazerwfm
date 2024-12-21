@@ -14,6 +14,7 @@ setup(
         "httpx>=0.25.2",
         "typer>=0.9.0",
         "rich>=13.7.0",
+        "pyyaml>=6.0.1",
     ],
     extras_require={
         "dev": [
