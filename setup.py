@@ -15,7 +15,7 @@ setup(
         "typer>=0.9.0",
         "rich>=13.7.0",
         "pyyaml>=6.0.1",
-        "textual>=0.1.1",
+        "textual>=1.0.0",
     ],
     extras_require={
         "dev": [
@@ -31,7 +31,7 @@ setup(
         "console_scripts": [
             "lazerwfm=lazerwfm.cli:run_cli",
             "lazerwfm-server=lazerwfm.web.server:run_server",
-            "lazerwfm-monitor=lazerwfm.monitor.cli:app",
+            "lazerwfm-monitor=lazerwfm.monitor.app:main",
         ],
     },
     python_requires=">=3.10",
