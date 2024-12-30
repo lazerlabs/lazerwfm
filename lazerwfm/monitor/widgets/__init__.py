@@ -1,5 +1,6 @@
-from .server_info import ServerInfo
-from .status_view import StatusView, WorkflowStatusTree
+"""Widget modules for the monitor TUI."""
+
+from .connection_status import ConnectionStatus
 from .workflow_list import WorkflowList
 
-__all__ = ["WorkflowList", "StatusView", "WorkflowStatusTree", "ServerInfo"]
+__all__ = ["ConnectionStatus", "WorkflowList"]

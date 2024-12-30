@@ -13,8 +13,11 @@ class WorkflowInfo(BaseModel):
     """Workflow information returned by API"""
 
     workflow_id: str
+    name: str
     status: WorkflowStatus
     created_at: datetime
+    current_step: str | None = None
+    duration: float | None = None  # Duration in seconds
     result: Any | None = None
     error: str | None = None
 
@@ -69,19 +72,28 @@ def create_api(engine: WorkflowEngine, registry: WorkflowRegistry) -> FastAPI:
 
     # Workflow listing endpoints (static paths first)
     @app.get("/workflows", response_model=WorkflowList, tags=["workflows"])
-    async def list_workflows():
-        """List all workflows in both warm and cold storage"""
+    async def list_workflows(status: WorkflowStatus | None = None):
+        """List all workflows in both warm and cold storage.
+        Optionally filter by status."""
         active_ids = engine._storage.get_active_workflows()
         workflows = []
 
         for wf_id in active_ids:
             wf = engine.get_workflow(wf_id)
-            if wf:
+            if wf and (status is None or wf.status == status):
+                # Calculate duration if workflow has started
+                duration = None
+                if wf.created_at:
+                    duration = (datetime.now() - wf.created_at).total_seconds()
+
                 workflows.append(
                     WorkflowInfo(
                         workflow_id=wf.id,
+                        name=wf.name,  # Assuming Workflow class has a name attribute
                         status=wf.status,
                         created_at=wf.created_at,
+                        current_step=wf.current_step_name,  # Assuming Workflow class has this attribute
+                        duration=duration,
                         result=wf.get_result(),
                         error=str(wf.get_error()) if wf.get_error() else None,
                     )
@@ -141,6 +153,7 @@ def create_api(engine: WorkflowEngine, registry: WorkflowRegistry) -> FastAPI:
 
         return WorkflowInfo(
             workflow_id=workflow.id,
+            name=workflow.name,
             status=workflow.status,
             created_at=workflow.created_at,
             result=workflow.get_result(),
@@ -158,6 +171,7 @@ def create_api(engine: WorkflowEngine, registry: WorkflowRegistry) -> FastAPI:
 
         return WorkflowInfo(
             workflow_id=workflow.id,
+            name=workflow.name,
             status=workflow.status,
             created_at=workflow.created_at,
             result=workflow.get_result(),

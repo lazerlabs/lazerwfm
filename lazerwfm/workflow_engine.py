@@ -91,6 +91,8 @@ class WorkflowEngine:
 
             try:
                 step_method = getattr(workflow, step_name)
+                # Update current step name before execution
+                workflow.set_current_step(step_name)
                 result = await asyncio.wait_for(
                     step_method(**params), timeout=DEFAULT_STEP_TIMEOUT
                 )

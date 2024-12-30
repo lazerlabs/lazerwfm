@@ -1,4 +1,6 @@
 import asyncio
+import os
+from pathlib import Path
 from typing import Optional, Type
 
 import uvicorn
@@ -22,9 +24,28 @@ class WorkflowServer:
         task_queue: Optional[TaskQueue] = None,
         host: str = "0.0.0.0",
         port: int = 8000,
+        config_path: Optional[str | Path] = None,
     ):
-        self.engine = engine or WorkflowEngine(storage=storage, task_queue=task_queue)
         self.registry = registry or WorkflowRegistry()
+
+        # Load workflows from config if path provided or try to find it
+        if config_path:
+            self.registry.load_from_config(config_path)
+        else:
+            # Try to find workflows.yml in current directory or parent directories
+            current_dir = Path.cwd()
+            config_file = current_dir / "workflows.yml"
+            if config_file.exists():
+                self.registry.load_from_config(config_file)
+            else:
+                parent_dir = current_dir.parent
+                config_file = parent_dir / "workflows.yml"
+                if config_file.exists():
+                    self.registry.load_from_config(config_file)
+
+        self.engine = engine or WorkflowEngine(
+            storage=storage, task_queue=task_queue, registry=self.registry
+        )
         self.app = create_api(self.engine, self.registry)
         self.host = host
         self.port = port
@@ -84,6 +105,7 @@ def run_server(
     task_queue: Optional[TaskQueue] = None,
     host: str = "0.0.0.0",
     port: int = 8000,
+    config_path: Optional[str | Path] = None,
 ):
     """Helper function to run the server"""
     server = WorkflowServer(
@@ -93,5 +115,6 @@ def run_server(
         task_queue=task_queue,
         host=host,
         port=port,
+        config_path=config_path,
     )
     server.run()

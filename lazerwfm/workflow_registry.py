@@ -66,6 +66,17 @@ class WorkflowRegistry:
             if not issubclass(workflow_class, Workflow):
                 raise TypeError(f"Class {class_name} must inherit from Workflow")
 
+            # Create a subclass that sets the name automatically
+            named_workflow_class = type(
+                class_name,
+                (workflow_class,),
+                {
+                    "__init__": lambda self, **kwargs: workflow_class.__init__(
+                        self, name=name, **kwargs
+                    )
+                },
+            )
+
             metadata = WorkflowMetadata(
                 name=name,
                 class_path=f"{module_path}:{class_name}",
@@ -74,7 +85,7 @@ class WorkflowRegistry:
                 is_public=wf_config.get("public", True),
             )
 
-            self._workflows[name] = (workflow_class, metadata)
+            self._workflows[name] = (named_workflow_class, metadata)
 
     def get_workflow_class(
         self, name: str
