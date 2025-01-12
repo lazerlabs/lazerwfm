@@ -1,8 +1,11 @@
 from datetime import timedelta
+from inspect import currentframe, getframeinfo
+
+import httpx
+from textual import work
 from textual.containers import Vertical
 from textual.widgets import DataTable, Tabs
-from textual import work
-import httpx
+
 from lazerwfm.types import WorkflowStatus
 from lazerwfm.web.api import WorkflowList as WFList
 
@@ -78,19 +81,25 @@ class WorkflowList(Vertical):
 
     async def _fetch_workflows(self, status: str) -> list[tuple]:
         """Fetch workflows from API based on status."""
+        connection_status = self.app.query_one("ConnectionStatus")
         try:
+            status_str = str(status).lower()
             self.write_log(
-                f"Fetching workflows from {self.api_url}/workflows?status={status.lower()}"
+                f"Fetching workflows from {self.api_url}/workflows?status={status_str}"
             )
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.api_url}/workflows",
-                    params={"status": status.lower()},
+                    params={"status": status_str},
+                    timeout=5.0,  # Add timeout to prevent hanging
                 )
                 response.raise_for_status()
                 data = response.json()
                 workflow_list = WFList(**data)
                 self.write_log(f"Found {len(workflow_list.workflows)} workflows")
+
+                # Update connection status on successful connection
+                connection_status.update_status(True, f"Connected to {self.api_url}")
 
                 return [
                     (
@@ -102,8 +111,25 @@ class WorkflowList(Vertical):
                     )
                     for wf in workflow_list.workflows
                 ]
+        except httpx.ReadTimeout:
+            connection_status.update_status(
+                False, f"Connection timeout: {self.api_url}"
+            )
+            self.write_log("Connection timeout", "red")
+            return []
+        except httpx.RequestError:
+            connection_status.update_status(False, f"Cannot connect to {self.api_url}")
+            self.write_log("Connection error", "red")
+            return []
         except Exception as e:
-            self.write_log(f"Error fetching workflows: {e}", "red")
+            connection_status.update_status(False, f"Error: {str(e)}")
+            cf = currentframe()
+            filename = getframeinfo(cf).filename.split("/")[-1]
+            line_no = cf.f_lineno
+            func_name = cf.f_code.co_name
+            self.write_log(
+                f"Error in {filename}:{func_name}:{line_no} - {str(e)}", "red"
+            )
             return []
 
     @work(exclusive=True)

@@ -1,5 +1,6 @@
 from textual.app import App
-from lazerwfm.monitor.screens import MainScreen, LogScreen
+
+from lazerwfm.monitor.screens import LogScreen, MainScreen
 
 
 class WorkflowMonitor(App):
@@ -23,24 +24,6 @@ class WorkflowMonitor(App):
         grid-rows: 1fr;
     }
 
-    Log {
-        background: $surface;
-        color: $text;
-        height: 100%;
-        border: solid $primary;
-        padding: 1;
-        overflow-y: scroll;
-    }
-
-    LogScreen {
-        background: $surface;
-    }
-
-    LogScreen ScrollableContainer {
-        width: 100%;
-        height: 85%;
-        overflow-y: scroll;
-    }
     """
 
     SCREENS = {
